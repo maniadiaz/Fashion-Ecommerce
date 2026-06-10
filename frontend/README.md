@@ -1,28 +1,29 @@
 # VELN — Frontend
 
-SvelteKit 2 application with UnoCSS, TypeScript, and Svelte transitions.
+React 19 + Vite 8 SPA with Material UI v9, Zustand v5, and React Router v7.
 
 ---
 
 ## Stack
 
-- **Framework:** SvelteKit 2
-- **Language:** TypeScript (strict mode)
-- **Styles:** UnoCSS — `preset-wind` + `preset-attributify`
-- **Animations:** Svelte built-in `transition:` and `animate:` directives
-- **Build tool:** Vite 6
+- **Framework:** React 19 + TypeScript 6
+- **Build tool:** Vite 8
+- **UI library:** Material UI v9 (`@mui/material`, `@mui/icons-material`)
+- **Styling:** MUI `sx` prop + custom theme — no Tailwind, no CSS modules
+- **State:** Zustand v5 with `persist` middleware (cart, wishlist, auth → `localStorage`)
+- **Routing:** React Router v7 (`BrowserRouter`, file-style nested routes)
+- **Progress:** NProgress for route-change bar
 
 ---
 
 ## Getting started
 
 ```bash
-# .env is already in the repo with PUBLIC_API_URL pointing to localhost:3001
 npm install
-npm run dev   # http://localhost:5173
+npm run dev    # Vite dev server on http://localhost:5173
 ```
 
-Make sure the backend is running on port 3001 before starting the frontend.
+The dev server proxies all `/api/*` requests to `http://localhost:3001` — no CORS config needed in dev.
 
 ---
 
@@ -30,19 +31,11 @@ Make sure the backend is running on port 3001 before starting the frontend.
 
 | Script | Description |
 |---|---|
-| `npm run dev` | Dev server with HMR |
-| `npm run build` | Production build |
-| `npm run preview` | Preview the production build locally |
-| `npm run typecheck` | `svelte-check` — type-checks `.svelte` and `.ts` files |
+| `npm run dev` | Start Vite dev server with HMR |
+| `npm run build` | Type-check + Vite production build → `dist/` |
+| `npm run typecheck` | `tsc --noEmit` — used in CI |
 | `npm run lint` | ESLint over `src/` |
-
----
-
-## Environment variables
-
-| Variable | Description |
-|---|---|
-| `PUBLIC_API_URL` | Backend base URL. Default: `http://localhost:3001` |
+| `npm run preview` | Serve the production build locally |
 
 ---
 
@@ -50,147 +43,115 @@ Make sure the backend is running on port 3001 before starting the frontend.
 
 ```
 src/
-├── app.html              # HTML shell
-├── app.d.ts              # App namespace augmentations
-├── lib/
-│   ├── api/              # fetch wrappers — one file per domain
-│   │   ├── client.ts     # Base apiFetch<T>() — injects Bearer token automatically
-│   │   ├── auth.ts
-│   │   ├── products.ts
-│   │   ├── cart.ts
-│   │   ├── orders.ts
-│   │   ├── wishlist.ts
-│   │   └── admin.ts
-│   ├── stores/
-│   │   ├── auth.store.ts      # JWT + user, persisted to localStorage
-│   │   ├── cart.store.ts      # Cart items, persisted to localStorage
-│   │   ├── wishlist.store.ts  # Product ID set, persisted to localStorage
-│   │   └── toast.store.ts     # Toast queue with auto-dismiss
-│   ├── components/
-│   │   ├── layout/
-│   │   │   └── Navbar.svelte
-│   │   ├── product/
-│   │   │   ├── ProductCard.svelte
-│   │   │   ├── ProductGrid.svelte
-│   │   │   ├── ProductBadge.svelte
-│   │   │   └── CategoryFilter.svelte
-│   │   ├── cart/
-│   │   │   ├── CartDrawer.svelte   # Slide-in drawer (fly from right, 300ms)
-│   │   │   └── CartItem.svelte
-│   │   ├── checkout/
-│   │   │   ├── ShippingForm.svelte
-│   │   │   └── PaymentSelector.svelte
-│   │   ├── orders/
-│   │   │   ├── OrderCard.svelte
-│   │   │   └── StatusTimeline.svelte
-│   │   ├── admin/
-│   │   │   ├── ProductForm.svelte
-│   │   │   └── StockEditor.svelte
-│   │   └── ui/
-│   │       ├── Modal.svelte
-│   │       ├── Toast.svelte
-│   │       ├── ToastContainer.svelte
-│   │       ├── Skeleton.svelte
-│   │       └── EmptyState.svelte
-│   └── types/
-│       ├── auth.ts
-│       ├── product.ts
-│       ├── cart.ts
-│       └── order.ts
-└── routes/
-    ├── +layout.svelte         # Root layout: Navbar, CartDrawer, ToastContainer, page fade
-    ├── +layout.ts             # prerender = false
-    ├── +page.svelte           # Home — product grid with category filter
-    ├── +error.svelte          # Global error page
-    ├── product/[id]/
-    │   └── +page.svelte       # Product detail — add to cart, wishlist toggle
-    ├── cart/
-    │   └── +page.svelte       # Full cart page
-    ├── checkout/
-    │   └── +page.svelte       # Shipping form + simulated payment
-    ├── orders/
-    │   ├── +page.svelte       # Order history
-    │   └── [id]/
-    │       └── +page.svelte   # Order detail with status timeline
-    ├── auth/
-    │   ├── login/+page.svelte
-    │   └── register/+page.svelte
-    └── admin/
-        ├── +layout.svelte     # Auth guard (admin only) + sidebar nav
-        ├── +page.svelte       # Redirect to /admin/products
-        ├── products/+page.svelte
-        ├── orders/+page.svelte
-        └── inventory/+page.svelte
+├── api/
+│   └── client.ts           # apiFetch<T> — wraps fetch, injects Bearer token, proxies /api
+├── components/
+│   ├── AuthDrawer.tsx       # Sign in / register drawer (right-side)
+│   ├── CartDrawer.tsx       # Cart sidebar with quantity controls and checkout CTA
+│   ├── CategoryBar.tsx      # Horizontal scrollable category filter pills
+│   ├── Navbar.tsx           # Fixed top bar: logo · nav links · cart badge · auth button
+│   ├── PageSkeleton.tsx     # Full-page skeleton loader (grid and detail variants)
+│   ├── ProductCard.tsx      # Card with hover wishlist + Quick Add; category-aware fallback images
+│   └── RouteProgress.tsx    # NProgress bar — fires on every location change
+├── hooks/
+│   └── useIntersectionObserver.ts  # Returns isVisible — used for scroll-triggered animations
+├── pages/
+│   ├── Home.tsx             # Landing: hero · products grid · featured banner · testimonials · newsletter
+│   ├── Products.tsx         # Full catalog — URL-synced category filter (?category=slug)
+│   ├── ProductDetail.tsx    # Product page — image · info · Add to Cart · wishlist
+│   ├── Checkout.tsx         # Shipping form + simulated payment (card / transfer / cash)
+│   ├── Orders.tsx           # Order history + detail with status timeline
+│   └── admin/
+│       ├── AdminLayout.tsx  # Sidebar nav + admin guard (redirects if not admin)
+│       ├── AdminProducts.tsx    # Product CRUD with multipart image upload
+│       ├── AdminOrders.tsx      # Order list with inline status selector
+│       ├── AdminInventory.tsx   # Stock overview with inline quantity edit
+│       ├── AdminPromotions.tsx  # Promotion CRUD with date range fields
+│       └── AdminCoupons.tsx     # Coupon CRUD
+├── store/
+│   ├── authStore.ts         # user, token, isAdmin — persisted
+│   ├── cartStore.ts         # items, totalItems, subtotal — persisted
+│   ├── wishlistStore.ts     # items: number[] (product IDs) — persisted
+│   └── uiStore.ts           # cartOpen, authOpen — not persisted
+├── types/
+│   └── index.ts             # Shared TypeScript interfaces (Product, CartItem, Order, …)
+├── theme.ts                 # MUI custom theme — design tokens, global component overrides
+├── App.tsx                  # BrowserRouter, all routes, ProtectedRoute, AdminRoute, AppShell
+└── main.tsx                 # ThemeProvider + CssBaseline + StrictMode
 ```
 
 ---
 
-## Stores
+## Routing
 
-### `auth.store.ts`
+| Path | Auth | Component |
+|---|---|---|
+| `/` | — | `Home` |
+| `/products` | — | `Products` — supports `?category=slug` |
+| `/product/:id` | — | `ProductDetail` |
+| `/checkout` | JWT | `Checkout` |
+| `/orders` | JWT | `Orders` |
+| `/orders/:id` | JWT | `Orders` (highlights order by id) |
+| `/admin` | Admin | redirects to `/admin/products` |
+| `/admin/products` | Admin | `AdminProducts` |
+| `/admin/orders` | Admin | `AdminOrders` |
+| `/admin/inventory` | Admin | `AdminInventory` |
+| `/admin/promotions` | Admin | `AdminPromotions` |
+| `/admin/coupons` | Admin | `AdminCoupons` |
+| `*` | — | redirects to `/` |
 
-Writable store backed by `localStorage`. Exports `authStore`, `login(token, user)`, `logout()`, `isAdmin` (derived), `isLoggedIn` (derived). On app load the store is populated from `localStorage`; protected pages use the store to guard navigation.
-
-### `cart.store.ts`
-
-Writable store backed by `localStorage`. Exports `cartStore`, `cartCount` (derived), `cartTotal` (derived), `addToCart`, `removeFromCart`, `updateQuantity`, `clearCart`.
-
-### `wishlist.store.ts`
-
-`Set<number>` of product IDs backed by `localStorage`. When the user is logged in, mutations are synced to the backend. `toggleWishlist(id)` adds or removes; `syncWishlist()` fetches the server state after login.
-
-### `toast.store.ts`
-
-Array of `{ id, message, type, duration }`. `addToast(msg, type?, duration?)` appends and auto-removes after `duration` ms (default 3 s). `removeToast(id)` dismisses immediately.
-
----
-
-## UnoCSS configuration
-
-Defined in `uno.config.ts`:
-
-```ts
-theme: {
-  colors: {
-    brand: '#111111',   // near-black for text and primary actions
-    accent: '#C9A84C',  // gold for highlights and new-arrival badges
-  },
-}
-
-shortcuts: {
-  'btn-primary': 'bg-brand text-white px-6 py-3 ...',
-  'btn-outline': 'border border-brand text-brand px-6 py-3 ...',
-  'card':        'bg-white rounded-lg shadow-sm overflow-hidden',
-}
-```
+`ProtectedRoute` reads `authStore.token` and redirects to `/` if absent.
+`AdminLayout` reads `authStore.isAdmin` and redirects to `/` if false.
 
 ---
 
-## Animations
+## Theme
 
-| Element | Transition |
+Custom MUI theme defined in `src/theme.ts`:
+
+| Token | Value |
 |---|---|
-| Page changes | `fade` — 200ms in / 100ms out — applied via `{#key $page.url.pathname}` in the root layout |
-| Cart drawer | `fly` from `x: 400`, 300ms — backdrop uses `fade` 150ms |
-| Product cards | `fly` from `y: 40`, 300ms, with `delay: index * 80ms` for stagger |
-| Toast messages | `fly` from `y: -16`, 200ms in — `fade` 150ms out |
-| Success banner on order detail | `fly` from `y: -20`, 400ms |
+| `background.default` | `#F8F7F5` (warm off-white) |
+| `primary.main` | `#0A0A0A` (near-black) |
+| `secondary.main` | `#E63323` (alert red) |
+| `text.secondary` | `#6B6B6B` |
+| Accent (inline) | `#C9A96E` (gold — used in Featured Banner) |
+| Body font | Inter (300, 400, 500) |
+| Display font | Playfair Display (400, 700) — h1–h3, logo |
+
+All MUI components: `borderRadius: 0`, no box shadows, borders instead of elevation.
+
+---
+
+## State management
+
+All stores use Zustand v5 with the `persist` middleware writing to `localStorage`.
+
+| Store | Persisted | Contents |
+|---|---|---|
+| `authStore` | Yes | `user`, `token`, `isAdmin` |
+| `cartStore` | Yes | `items[]`, `totalItems`, `subtotal` |
+| `wishlistStore` | Yes | `items: number[]` (product IDs) |
+| `uiStore` | No | `cartOpen`, `authOpen` |
 
 ---
 
 ## API client
 
-`src/lib/api/client.ts` exports `apiFetch<T>(path, options?)`:
+`src/api/client.ts` exports a single `apiFetch<T>(path, options?)` function:
 
-- Reads `PUBLIC_API_URL` from `$env/static/public`.
-- Automatically injects `Authorization: Bearer <token>` from the auth store when the user is logged in.
-- Skips `Content-Type: application/json` for `FormData` bodies (lets the browser set the multipart boundary).
-- Throws `ApiError(status, message)` on non-2xx responses — all callers use `instanceof ApiError` to show user-facing error messages.
+- Prepends `/api` to the path (routed to backend via Vite proxy in dev)
+- Reads `authStore.getState().token` and injects `Authorization: Bearer <token>` when present
+- Automatically removes `Content-Type` for `FormData` requests (lets the browser set the correct multipart boundary)
+- Throws on non-2xx responses with the `{ error: string }` shape from the backend
 
 ---
 
-## Conventions
+## Image fallback strategy
 
-- Every `{#await}` block has a `{:catch error}` branch — no silent failures.
-- Stores are the single source of truth; components never call the API directly.
-- TypeScript strict mode. No `any`.
+`ProductCard` uses a two-tier image strategy:
+
+1. **Primary:** `product.image_url` from the backend (Unsplash URL or `/uploads/...` path)
+2. **Fallback on `onError`:** Category-aware pool — `women`, `men`, `accessories`, or `default` — indexed by grid position so the same product always gets the same fallback image
+
+This means products always display a visually appropriate photo, even if the primary URL fails.

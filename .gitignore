@@ -22,3 +22,10 @@ npm-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code internal files
+.claude/
+
+# Vite / React build output
+frontend/dist/
+
