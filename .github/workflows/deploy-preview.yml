@@ -1,0 +1,13 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+
+# Reserved for future Vercel/Netlify preview environment setup.
+# This job is intentionally a placeholder — no deployment is configured yet.
+jobs:
+  preview:
+    name: Preview deployment (placeholder)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Preview deployment placeholder — future Vercel/Netlify integration"
