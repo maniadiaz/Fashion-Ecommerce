@@ -17,6 +17,7 @@ router.use(authenticateJWT, requireAdmin)
 // Orders
 router.get('/orders', adminController.listOrders)
 router.put('/orders/:id', validateBody(updateOrderStatusSchema), adminController.updateOrderStatus)
+router.delete('/orders/:id', adminController.cancelOrder)
 
 // Inventory
 router.get('/inventory', adminController.listInventory)

@@ -7,6 +7,7 @@ import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
+import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
@@ -15,6 +16,7 @@ import DialogActions from '@mui/material/DialogActions'
 import TextField from '@mui/material/TextField'
 import Alert from '@mui/material/Alert'
 import Skeleton from '@mui/material/Skeleton'
+import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -30,25 +32,29 @@ interface CouponForm {
 }
 
 const EMPTY: CouponForm = { code: '', discount_pct: '', max_uses: '', expires_at: '' }
+const PAGE_SIZE_OPTIONS = [10, 25, 50]
 
 export default function AdminCoupons() {
   const [items, setItems] = useState<Coupon[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Coupon | null>(null)
   const [form, setForm] = useState<CouponForm>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
-  function load() {
+  function load(p = page, rpp = rowsPerPage) {
     setLoading(true)
-    apiFetch<Coupon[]>('/admin/coupons')
-      .then(setItems)
+    apiFetch<{ coupons: Coupon[]; total: number }>(`/admin/coupons?page=${p + 1}&limit=${rpp}`)
+      .then((data) => { setItems(data?.coupons ?? []); setTotal(data?.total ?? 0) })
       .catch(() => setError('Failed to load'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [page, rowsPerPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() { setEditing(null); setForm(EMPTY); setOpen(true) }
 
@@ -74,11 +80,7 @@ export default function AdminCoupons() {
   async function handleSave() {
     setSaving(true); setError('')
     try {
-      const body = JSON.stringify({
-        ...form,
-        discount_pct: Number(form.discount_pct),
-        max_uses: Number(form.max_uses),
-      })
+      const body = JSON.stringify({ ...form, discount_pct: Number(form.discount_pct), max_uses: Number(form.max_uses) })
       if (editing) {
         await apiFetch(`/admin/coupons/${editing.id}`, { method: 'PUT', body })
       } else {
@@ -87,9 +89,7 @@ export default function AdminCoupons() {
       setOpen(false); load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   function update(field: keyof CouponForm, value: string) {
@@ -100,16 +100,13 @@ export default function AdminCoupons() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Typography variant="h2" sx={{ fontSize: '1.6rem' }}>Coupons</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} size="small">
-          Add Coupon
-        </Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} size="small">Add Coupon</Button>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {loading ? (
-        Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={52} sx={{ mb: 1 }} />)
-      ) : (
+      <Box sx={{ position: 'relative' }}>
+        {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -122,24 +119,42 @@ export default function AdminCoupons() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {items.map((c) => (
-              <TableRow key={c.id} hover>
-                <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.code}</TableCell>
-                <TableCell>{c.discount_pct}%</TableCell>
-                <TableCell>{c.used_count} / {c.max_uses}</TableCell>
-                <TableCell>{new Date(c.expires_at).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <Chip label={c.active ? 'Yes' : 'No'} color={c.active ? 'success' : 'default'} size="small" sx={{ borderRadius: 0 }} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton size="small" onClick={() => openEdit(c)}><EditIcon fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
+            {loading
+              ? Array.from({ length: rowsPerPage }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <TableCell key={j}><Skeleton height={24} /></TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : items.map((c) => (
+                  <TableRow key={c.id} hover>
+                    <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{c.code}</TableCell>
+                    <TableCell>{c.discount_pct}%</TableCell>
+                    <TableCell>{c.used_count} / {c.max_uses}</TableCell>
+                    <TableCell>{new Date(c.expires_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Chip label={c.active ? 'Yes' : 'No'} color={c.active ? 'success' : 'default'} size="small" sx={{ borderRadius: 0 }} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => openEdit(c)}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDelete(c.id)}><DeleteIcon fontSize="small" /></IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+            }
           </TableBody>
         </Table>
-      )}
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          onPageChange={(_, p) => setPage(p)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0) }}
+          rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+        />
+      </Box>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="xs" fullWidth
         slotProps={{ paper: { sx: { borderRadius: 0 } } }}>
@@ -148,11 +163,11 @@ export default function AdminCoupons() {
           {error && <Alert severity="error">{error}</Alert>}
           <TextField label="Code" required fullWidth value={form.code}
             onChange={(e) => update('code', e.target.value.toUpperCase())} />
-          <TextField label="Discount %" type="number" fullWidth value={form.discount_pct}
+          <TextField label="Discount %" required type="number" fullWidth value={form.discount_pct}
             onChange={(e) => update('discount_pct', e.target.value)} />
-          <TextField label="Max Uses" type="number" fullWidth value={form.max_uses}
+          <TextField label="Max Uses" required type="number" fullWidth value={form.max_uses}
             onChange={(e) => update('max_uses', e.target.value)} />
-          <TextField label="Expires At" type="datetime-local" fullWidth slotProps={{ inputLabel: { shrink: true } }}
+          <TextField label="Expires At" required type="datetime-local" fullWidth slotProps={{ inputLabel: { shrink: true } }}
             value={form.expires_at} onChange={(e) => update('expires_at', e.target.value)} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>

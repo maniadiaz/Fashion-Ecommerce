@@ -3,6 +3,7 @@ import { RowDataPacket } from 'mysql2'
 
 export interface AdminOrder {
   id: number
+  shipping_name: string
   user_email: string
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
   total: number
@@ -20,8 +21,16 @@ export interface InventoryItem {
   category_name: string
 }
 
+export interface Paginated<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface AdminOrderRow extends RowDataPacket {
   id: number
+  shipping_name: string
   user_email: string
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
   total: string
@@ -39,14 +48,30 @@ interface InventoryRow extends RowDataPacket {
   category_name: string
 }
 
-export async function getAllOrders(): Promise<AdminOrder[]> {
+interface CountRow extends RowDataPacket {
+  total: number
+}
+
+export async function getAllOrders(page = 1, limit = 10): Promise<Paginated<AdminOrder>> {
+  const offset = (page - 1) * limit
+
+  const [[countRow]] = await pool.execute<CountRow[]>('SELECT COUNT(*) AS total FROM orders')
+
   const [rows] = await pool.execute<AdminOrderRow[]>(
-    `SELECT o.id, u.email AS user_email, o.status, o.total, o.payment_method, o.payment_status, o.created_at
+    `SELECT o.id, o.shipping_name, u.email AS user_email, o.status, o.total,
+            o.payment_method, o.payment_status, o.created_at
      FROM orders o
      JOIN users u ON o.user_id = u.id
-     ORDER BY o.created_at DESC`
+     ORDER BY o.created_at DESC
+     LIMIT ${limit} OFFSET ${offset}`
   )
-  return rows.map((r) => ({ ...r, total: parseFloat(r.total) }))
+
+  return {
+    data: rows.map((r) => ({ ...r, total: parseFloat(r.total) })),
+    total: countRow.total,
+    page,
+    limit,
+  }
 }
 
 export async function updateOrderStatus(
@@ -56,18 +81,33 @@ export async function updateOrderStatus(
   await pool.execute('UPDATE orders SET status = ? WHERE id = ?', [status, orderId])
 }
 
-export async function getInventory(): Promise<InventoryItem[]> {
+export async function cancelOrder(orderId: number): Promise<void> {
+  await pool.execute("UPDATE orders SET status = 'cancelled' WHERE id = ?", [orderId])
+}
+
+export async function getInventory(page = 1, limit = 10): Promise<Paginated<InventoryItem>> {
+  const offset = (page - 1) * limit
+
+  const [[countRow]] = await pool.execute<CountRow[]>('SELECT COUNT(*) AS total FROM products')
+
   const [rows] = await pool.execute<InventoryRow[]>(
     `SELECT p.id, p.name, p.price, p.stock, p.active, c.name AS category_name
      FROM products p
      JOIN categories c ON p.category_id = c.id
-     ORDER BY p.name`
+     ORDER BY p.name
+     LIMIT ${limit} OFFSET ${offset}`
   )
-  return rows.map((r) => ({
-    ...r,
-    price: parseFloat(r.price),
-    active: r.active === 1,
-  }))
+
+  return {
+    data: rows.map((r) => ({
+      ...r,
+      price: parseFloat(r.price),
+      active: r.active === 1,
+    })),
+    total: countRow.total,
+    page,
+    limit,
+  }
 }
 
 export async function updateStock(productId: number, stock: number): Promise<void> {

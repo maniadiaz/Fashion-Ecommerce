@@ -5,8 +5,12 @@ import { CreateProductInput, UpdateProductInput } from '../schemas/product.schem
 export async function list(req: Request, res: Response): Promise<void> {
   try {
     const category = typeof req.query.category === 'string' ? req.query.category : undefined
-    const products = await productsService.getProducts(category)
-    res.json({ products })
+    const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '20')) || 20))
+    const includeInactive = req.query.all === 'true'
+
+    const result = await productsService.getProducts(category, page, limit, includeInactive)
+    res.json(result)
   } catch (err) {
     const error = err as Error
     res.status(500).json({ error: error.message })

@@ -17,6 +17,13 @@ export interface Product {
   created_at: string
 }
 
+export interface PaginatedProducts {
+  products: Product[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface ProductRow extends RowDataPacket {
   id: number
   name: string
@@ -32,6 +39,10 @@ interface ProductRow extends RowDataPacket {
   created_at: string
 }
 
+interface CountRow extends RowDataPacket {
+  total: number
+}
+
 function toProduct(row: ProductRow): Product {
   return {
     ...row,
@@ -40,24 +51,44 @@ function toProduct(row: ProductRow): Product {
   }
 }
 
-export async function getProducts(categorySlug?: string): Promise<Product[]> {
-  let query = `
-    SELECT p.*, c.name AS category_name, c.slug AS category_slug
-    FROM products p
-    JOIN categories c ON p.category_id = c.id
-    WHERE p.active = 1
-  `
-  const params: string[] = []
+export async function getProducts(
+  categorySlug?: string,
+  page = 1,
+  limit = 20,
+  includeInactive = false
+): Promise<PaginatedProducts> {
+  const offset = (page - 1) * limit
+
+  let where = includeInactive ? 'WHERE 1=1' : 'WHERE p.active = 1'
+  const params: (string | number)[] = []
 
   if (categorySlug) {
-    query += ' AND c.slug = ?'
+    where += ' AND c.slug = ?'
     params.push(categorySlug)
   }
 
-  query += ' ORDER BY p.created_at DESC'
+  const baseQuery = `
+    FROM products p
+    JOIN categories c ON p.category_id = c.id
+    ${where}
+  `
 
-  const [rows] = await pool.execute<ProductRow[]>(query, params)
-  return rows.map(toProduct)
+  const [[countRow]] = await pool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS total ${baseQuery}`,
+    params
+  )
+
+  const [rows] = await pool.execute<ProductRow[]>(
+    `SELECT p.*, c.name AS category_name, c.slug AS category_slug ${baseQuery} ORDER BY p.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+    params
+  )
+
+  return {
+    products: rows.map(toProduct),
+    total: countRow.total,
+    page,
+    limit,
+  }
 }
 
 export async function getProductById(id: number): Promise<Product | null> {

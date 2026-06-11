@@ -12,7 +12,7 @@ export interface CartItemFull {
 
 interface CartRow extends RowDataPacket {
   id: number
-  product_id: number
+  productId: number
   name: string
   price: string
   image_url: string | null
@@ -30,7 +30,7 @@ export async function getCart(userId: number): Promise<CartItemFull[]> {
   )
   return rows.map((r) => ({
     id: r.id,
-    productId: r.product_id,
+    productId: r.productId,
     name: r.name,
     price: parseFloat(r.price),
     image_url: r.image_url,

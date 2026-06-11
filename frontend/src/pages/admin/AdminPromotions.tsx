@@ -7,6 +7,7 @@ import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
+import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
@@ -15,6 +16,7 @@ import DialogActions from '@mui/material/DialogActions'
 import TextField from '@mui/material/TextField'
 import Alert from '@mui/material/Alert'
 import Skeleton from '@mui/material/Skeleton'
+import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -31,25 +33,29 @@ interface PromotionForm {
 }
 
 const EMPTY: PromotionForm = { name: '', description: '', discount_pct: '', starts_at: '', ends_at: '' }
+const PAGE_SIZE_OPTIONS = [10, 25, 50]
 
 export default function AdminPromotions() {
   const [items, setItems] = useState<Promotion[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Promotion | null>(null)
   const [form, setForm] = useState<PromotionForm>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
 
-  function load() {
+  function load(p = page, rpp = rowsPerPage) {
     setLoading(true)
-    apiFetch<Promotion[]>('/admin/promotions')
-      .then(setItems)
+    apiFetch<{ promotions: Promotion[]; total: number }>(`/admin/promotions?page=${p + 1}&limit=${rpp}`)
+      .then((data) => { setItems(data?.promotions ?? []); setTotal(data?.total ?? 0) })
       .catch(() => setError('Failed to load'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [page, rowsPerPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() { setEditing(null); setForm(EMPTY); setOpen(true) }
 
@@ -57,7 +63,7 @@ export default function AdminPromotions() {
     setEditing(p)
     setForm({
       name: p.name,
-      description: p.description,
+      description: p.description ?? '',
       discount_pct: String(p.discount_pct),
       starts_at: p.starts_at.slice(0, 16),
       ends_at: p.ends_at.slice(0, 16),
@@ -85,9 +91,7 @@ export default function AdminPromotions() {
       setOpen(false); load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   function update(field: keyof PromotionForm, value: string) {
@@ -98,16 +102,13 @@ export default function AdminPromotions() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
         <Typography variant="h2" sx={{ fontSize: '1.6rem' }}>Promotions</Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} size="small">
-          Add Promotion
-        </Button>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} size="small">Add Promotion</Button>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      {loading ? (
-        Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} height={52} sx={{ mb: 1 }} />)
-      ) : (
+      <Box sx={{ position: 'relative' }}>
+        {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1 }} />}
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -120,40 +121,55 @@ export default function AdminPromotions() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {items.map((p) => (
-              <TableRow key={p.id} hover>
-                <TableCell>{p.name}</TableCell>
-                <TableCell>{p.discount_pct}%</TableCell>
-                <TableCell>{new Date(p.starts_at).toLocaleDateString()}</TableCell>
-                <TableCell>{new Date(p.ends_at).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  <Chip label={p.active ? 'Yes' : 'No'} color={p.active ? 'success' : 'default'} size="small" sx={{ borderRadius: 0 }} />
-                </TableCell>
-                <TableCell align="right">
-                  <IconButton size="small" onClick={() => openEdit(p)}><EditIcon fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(p.id)}><DeleteIcon fontSize="small" /></IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
+            {loading
+              ? Array.from({ length: rowsPerPage }).map((_, i) => (
+                  <TableRow key={i}>
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <TableCell key={j}><Skeleton height={24} /></TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              : items.map((p) => (
+                  <TableRow key={p.id} hover>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>{p.discount_pct}%</TableCell>
+                    <TableCell>{new Date(p.starts_at).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(p.ends_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Chip label={p.active ? 'Yes' : 'No'} color={p.active ? 'success' : 'default'} size="small" sx={{ borderRadius: 0 }} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => openEdit(p)}><EditIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDelete(p.id)}><DeleteIcon fontSize="small" /></IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))
+            }
           </TableBody>
         </Table>
-      )}
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          onPageChange={(_, p) => setPage(p)}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(0) }}
+          rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+        />
+      </Box>
 
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth
         slotProps={{ paper: { sx: { borderRadius: 0 } } }}>
         <DialogTitle>{editing ? 'Edit Promotion' : 'New Promotion'}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '16px !important' }}>
           {error && <Alert severity="error">{error}</Alert>}
-          <TextField label="Name" required fullWidth value={form.name}
-            onChange={(e) => update('name', e.target.value)} />
-          <TextField label="Description" multiline rows={2} fullWidth value={form.description}
-            onChange={(e) => update('description', e.target.value)} />
-          <TextField label="Discount %" type="number" fullWidth value={form.discount_pct}
-            onChange={(e) => update('discount_pct', e.target.value)} />
+          <TextField label="Name" required fullWidth value={form.name} onChange={(e) => update('name', e.target.value)} />
+          <TextField label="Description" multiline rows={2} fullWidth value={form.description} onChange={(e) => update('description', e.target.value)} />
+          <TextField label="Discount %" required type="number" fullWidth value={form.discount_pct} onChange={(e) => update('discount_pct', e.target.value)} />
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            <TextField label="Starts At" type="datetime-local" slotProps={{ inputLabel: { shrink: true } }}
+            <TextField label="Starts At" required type="datetime-local" slotProps={{ inputLabel: { shrink: true } }}
               value={form.starts_at} onChange={(e) => update('starts_at', e.target.value)} />
-            <TextField label="Ends At" type="datetime-local" slotProps={{ inputLabel: { shrink: true } }}
+            <TextField label="Ends At" required type="datetime-local" slotProps={{ inputLabel: { shrink: true } }}
               value={form.ends_at} onChange={(e) => update('ends_at', e.target.value)} />
           </Box>
         </DialogContent>

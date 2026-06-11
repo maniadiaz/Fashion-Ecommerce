@@ -45,9 +45,10 @@ export default function Home() {
   const [email, setEmail] = useState('')
 
   useEffect(() => {
-    const params = activeCategory ? `?category=${activeCategory}` : ''
+    const params = new URLSearchParams({ page: '1', limit: '8' })
+    if (activeCategory) params.set('category', activeCategory)
     setLoading(true)
-    apiFetch<{ products: Product[] }>(`/products${params}`)
+    apiFetch<{ products: Product[] }>(`/products?${params}`)
       .then((data) => setProducts(Array.isArray(data?.products) ? data.products : []))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false))

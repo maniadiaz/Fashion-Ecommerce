@@ -2,9 +2,17 @@ import { Request, Response } from 'express'
 import * as svc from '../services/promotions.service'
 import type { CreatePromotionInput, UpdatePromotionInput, PromotionProductInput } from '../schemas/promotion.schema'
 
-export async function listPromotions(_req: Request, res: Response): Promise<void> {
+function parsePagination(req: Request, defaultLimit = 10) {
+  const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? String(defaultLimit))) || defaultLimit))
+  return { page, limit }
+}
+
+export async function listPromotions(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ promotions: await svc.listPromotions() })
+    const { page, limit } = parsePagination(req)
+    const result = await svc.listPromotions(page, limit)
+    res.json({ promotions: result.data, total: result.total, page: result.page, limit: result.limit })
   } catch (err) {
     res.status(500).json({ error: (err as Error).message })
   }

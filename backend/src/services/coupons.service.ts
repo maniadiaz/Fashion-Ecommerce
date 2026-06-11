@@ -12,6 +12,13 @@ export interface Coupon {
   created_at: string
 }
 
+export interface Paginated<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface CouponRow extends RowDataPacket {
   id: number
   code: string
@@ -23,15 +30,25 @@ interface CouponRow extends RowDataPacket {
   created_at: string
 }
 
-export async function listCoupons(): Promise<Coupon[]> {
+interface CountRow extends RowDataPacket {
+  total: number
+}
+
+export async function listCoupons(page = 1, limit = 10): Promise<Paginated<Coupon>> {
+  const offset = (page - 1) * limit
+
+  const [[countRow]] = await pool.execute<CountRow[]>('SELECT COUNT(*) AS total FROM coupons')
+
   const [rows] = await pool.execute<CouponRow[]>(
-    'SELECT * FROM coupons ORDER BY created_at DESC'
+    `SELECT * FROM coupons ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   )
-  return rows.map((r) => ({
-    ...r,
-    discount_pct: parseFloat(r.discount_pct),
-    active: r.active === 1,
-  }))
+
+  return {
+    data: rows.map((r) => ({ ...r, discount_pct: parseFloat(r.discount_pct), active: r.active === 1 })),
+    total: countRow.total,
+    page,
+    limit,
+  }
 }
 
 export async function createCoupon(data: {
@@ -44,10 +61,7 @@ export async function createCoupon(data: {
     'INSERT INTO coupons (code, discount_pct, max_uses, expires_at) VALUES (?, ?, ?, ?)',
     [data.code.toUpperCase(), data.discount_pct, data.max_uses, data.expires_at]
   )
-  const [rows] = await pool.execute<CouponRow[]>(
-    'SELECT * FROM coupons WHERE id = ?',
-    [result.insertId]
-  )
+  const [rows] = await pool.execute<CouponRow[]>('SELECT * FROM coupons WHERE id = ?', [result.insertId])
   const r = rows[0]
   return { ...r, discount_pct: parseFloat(r.discount_pct), active: r.active === 1 }
 }
@@ -77,5 +91,5 @@ export async function updateCoupon(
 }
 
 export async function deleteCoupon(id: number): Promise<void> {
-  await pool.execute('DELETE FROM coupons WHERE id = ?', [id])
+  await pool.execute('UPDATE coupons SET active = 0 WHERE id = ?', [id])
 }

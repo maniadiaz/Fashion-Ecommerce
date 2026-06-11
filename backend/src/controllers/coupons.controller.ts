@@ -2,9 +2,17 @@ import { Request, Response } from 'express'
 import * as svc from '../services/coupons.service'
 import type { CreateCouponInput, UpdateCouponInput } from '../schemas/coupon.schema'
 
-export async function listCoupons(_req: Request, res: Response): Promise<void> {
+function parsePagination(req: Request, defaultLimit = 10) {
+  const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? String(defaultLimit))) || defaultLimit))
+  return { page, limit }
+}
+
+export async function listCoupons(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ coupons: await svc.listCoupons() })
+    const { page, limit } = parsePagination(req)
+    const result = await svc.listCoupons(page, limit)
+    res.json({ coupons: result.data, total: result.total, page: result.page, limit: result.limit })
   } catch (err) {
     res.status(500).json({ error: (err as Error).message })
   }

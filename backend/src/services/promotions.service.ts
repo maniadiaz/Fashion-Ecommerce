@@ -23,6 +23,13 @@ export interface PromotionProduct {
   discounted_price: number
 }
 
+export interface Paginated<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+}
+
 interface PromotionRow extends RowDataPacket {
   id: number
   name: string
@@ -44,15 +51,25 @@ interface PromotionProductRow extends RowDataPacket {
   original_price: string
 }
 
-export async function listPromotions(): Promise<Promotion[]> {
+interface CountRow extends RowDataPacket {
+  total: number
+}
+
+export async function listPromotions(page = 1, limit = 10): Promise<Paginated<Promotion>> {
+  const offset = (page - 1) * limit
+
+  const [[countRow]] = await pool.execute<CountRow[]>('SELECT COUNT(*) AS total FROM promotions')
+
   const [rows] = await pool.execute<PromotionRow[]>(
-    'SELECT * FROM promotions ORDER BY created_at DESC'
+    `SELECT * FROM promotions ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   )
-  return rows.map((r) => ({
-    ...r,
-    discount_pct: parseFloat(r.discount_pct),
-    active: r.active === 1,
-  }))
+
+  return {
+    data: rows.map((r) => ({ ...r, discount_pct: parseFloat(r.discount_pct), active: r.active === 1 })),
+    total: countRow.total,
+    page,
+    limit,
+  }
 }
 
 export async function createPromotion(data: {
@@ -66,10 +83,7 @@ export async function createPromotion(data: {
     'INSERT INTO promotions (name, description, discount_pct, starts_at, ends_at) VALUES (?, ?, ?, ?, ?)',
     [data.name, data.description ?? null, data.discount_pct, data.starts_at, data.ends_at]
   )
-  const [rows] = await pool.execute<PromotionRow[]>(
-    'SELECT * FROM promotions WHERE id = ?',
-    [result.insertId]
-  )
+  const [rows] = await pool.execute<PromotionRow[]>('SELECT * FROM promotions WHERE id = ?', [result.insertId])
   const r = rows[0]
   return { ...r, discount_pct: parseFloat(r.discount_pct), active: r.active === 1 }
 }
@@ -101,7 +115,7 @@ export async function updatePromotion(
 }
 
 export async function deletePromotion(id: number): Promise<void> {
-  await pool.execute('DELETE FROM promotions WHERE id = ?', [id])
+  await pool.execute('UPDATE promotions SET active = 0 WHERE id = ?', [id])
 }
 
 export async function listPromotionProducts(): Promise<PromotionProduct[]> {

@@ -2,6 +2,8 @@ import { Navigate, Outlet, NavLink } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
+import Button from '@mui/material/Button'
+import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import { useAuthStore } from '../../store/authStore'
 
 const NAV_ITEMS = [
@@ -31,6 +33,8 @@ export default function AdminLayout() {
           top: 64,
           height: 'calc(100vh - 64px)',
           overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <Typography
@@ -40,7 +44,7 @@ export default function AdminLayout() {
           Admin
         </Typography>
         <Divider sx={{ mb: 2 }} />
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flex: 1 }}>
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -61,6 +65,25 @@ export default function AdminLayout() {
             </NavLink>
           ))}
         </Box>
+
+        <Divider sx={{ my: 2 }} />
+        <Button
+          component={NavLink}
+          to="/"
+          startIcon={<ArrowBackIcon />}
+          size="small"
+          sx={{
+            justifyContent: 'flex-start',
+            color: '#6B6B6B',
+            fontSize: '0.8rem',
+            letterSpacing: '0.04em',
+            px: 1.5,
+            mb: 2,
+            '&:hover': { color: '#0A0A0A', backgroundColor: '#F8F7F5' },
+          }}
+        >
+          Back to Store
+        </Button>
       </Box>
 
       {/* Main content */}
