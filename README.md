@@ -32,7 +32,6 @@ Fashion-Ecommerce/
 │       └── deploy-preview.yml    # Placeholder for future preview deploys
 ├── frontend/                     # React + Vite app  →  see frontend/README.md
 ├── backend/                      # Express API        →  see backend/README.md
-└── CLAUDE.md                     # Project spec and coding conventions
 ```
 
 ---
